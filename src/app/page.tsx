@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { PRDDocument } from '@/lib/types';
+import { track } from '@vercel/analytics';
+import { detectTheme } from '@/lib/themeDetector';
 
 // Clickable prompt templates to quickly test the application
 const SUGGESTIONS = [
@@ -61,6 +63,12 @@ export default function Home() {
       setPrd(result.data.prd);
       setMarkdown(result.data.markdown);
       setActiveTab('notion'); // default back to Notion view when loaded
+
+      // Track analytics custom event
+      track('generate_prd_click', {
+        input_length: trimmed.length,
+        detected_theme: detectTheme(trimmed)
+      });
     } catch (err: any) {
       setError(err.message || '网络连接出错，请检查后重试');
     } finally {
