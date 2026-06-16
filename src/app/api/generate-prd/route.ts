@@ -113,54 +113,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Retrieve API Key
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    // 4. Retrieve API Keys and Configs
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+    const model = process.env.ANTHROPIC_MODEL || 'glm-5.1';
+
+    if (!apiKey) {
       return NextResponse.json(
         { 
           success: false, 
-          error: '服务器未配置 Gemini API Key。请在本地项目的 .env.local 文件中添加您的 GEMINI_API_KEY 后重试。' 
+          error: '服务器未配置 ANTHROPIC_API_KEY。请在本地项目的 .env.local 文件中配置后重试。' 
         },
         { status: 500 }
       );
     }
 
-    // 5. Call Gemini API via standard fetch
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: SYSTEM_PROMPT },
-                { text: trimmedPrompt }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7
-          }
-        })
-      }
-    );
+    // 5. Call Anthropic Messages API via standard fetch
+    const response = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [
+          { role: 'user', content: trimmedPrompt }
+        ],
+        temperature: 0.7
+      })
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const geminiErrorMessage = errorData?.error?.message || 'Gemini API 响应错误';
+      const anthropicErrorMessage = errorData?.error?.message || 'Anthropic API 响应错误';
       return NextResponse.json(
-        { success: false, error: `AI 服务响应失败: ${geminiErrorMessage}` },
+        { success: false, error: `AI 服务响应失败: ${anthropicErrorMessage}` },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    let aiMarkdownText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let aiMarkdownText = data?.content?.[0]?.text || '';
 
     // Remove any accidental markdown code block wrappers from output if they exist
     aiMarkdownText = aiMarkdownText.replace(/^```markdown\s*/i, '').replace(/```\s*$/, '').trim();
